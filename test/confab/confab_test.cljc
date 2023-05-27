@@ -1,6 +1,6 @@
-(ns zrkrlc.confab-test
+(ns confab.confab-test
   (:require [clojure.test :refer :all]
-            [zrkrlc.confab :refer :all]))
+            [confab.core :refer :all]))
 
 (deftest a-test
   (testing "FIXME, I fail."

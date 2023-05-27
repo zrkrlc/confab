@@ -4,11 +4,12 @@
 
 [![Cljdoc](https://cljdoc.org/badge/com.zrkrlc/confab)](https://cljdoc.org/d/com.zrkrlc/confab)
 
-– a Clojure/Script library for generating mock data
+– a data-oriented Clojure/Script library for generating mock data, with support for `clojure.spec`
+.
 
 ## Usage
 
-Quick examples:
+### Quick examples
 
 ```clojure
 (confab :confab/username)
@@ -28,7 +29,42 @@ Quick examples:
 
 The entry point is a multimethod `confab` that takes in a keyword and an optional `opts` map. If `clojure.spec.alpha` is present, the spec corresponding to the keyword will, if it exists, be used to generate the data instead.
 
-Confab can also take in a (possibly nested) schema of keys with `:confab/*` as values and it will generate a corresponding map:
+### Multiple keywords
+
+Confab can also in a sequence of keywords and generate data accordingly. If there are constants in the data, it will leave them intact.
+
+```clojure
+(confab [:confab/first-name :confab/last-name])
+; => ["John" "Smith"] 
+
+(confab (list "start" :confab/int "end" true))
+; => ("start" 8 "end" true)
+```
+
+### Alternative syntax
+
+> :warning: This is a potential point of confusion, so take note of it before reading on.
+
+However, Confab treats a pair of `[<keyword> <options-map>]` in a special way, so that these two calls are equivalent:
+
+```clojure
+(confab :confab/password {:length 8, :seed 10101010})
+; => "eF8xYiw0"
+
+(confab [:confab/password {:length 8, :seed 10101010}])
+; => "eF8xYiw0" (same output)
+```
+
+Why introduce this alternative syntax? It's useful if you want to pass in options to individual keywords in a sequence:
+
+```clojure
+(confab [:confab/username, [:confab/password {:length 8}]])
+; => ["fullmetall_alchemist97" "Xn1Se7Ui]
+```
+
+### Nested schema
+
+Confab can also take in a (possibly nested) schema of keys with `:confab/*` as values:
 
 ```clojure
 (confab {:user/name  :confab/user
@@ -44,7 +80,7 @@ Confab can also take in a (possibly nested) schema of keys with `:confab/*` as v
 ;                  :about     "Was I a good Bing?"}}
 ```
 
-Constant values will not be changed, and singleton/pairs will be interpreted like they were arguments to a `confab` call. Invalid schemas will throw an exception, and `opts` map passed to the original `confab` call will in general have options that modify only the resulting map itself.
+Like in sequences, constant values will be left intact. Thus, aside from the single exception involving `[<keyword> <options-map>]` pairs above, **Confab is designed to mirror the shape of your data**.
 
 See [Modules](#Modules) for the available keywords and the options they accept.
 
@@ -68,9 +104,9 @@ Not to be confused with `:confab/date` which spits out human-readable dates.
 
 #### `:confab/octal`
 
-#### `:confab/radix`
-
 #### `:confab/binary`
+
+#### `:confab/radix`
 
 ### Internet
 

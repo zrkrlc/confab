@@ -60,23 +60,23 @@
       :else                              :confab/schema-identity)))
 
 
-(defmethod confab :confab/schema-spec [arg & [{:keys [size seed]}]]
+(defmethod ^:private confab :confab/schema-spec [arg & [{:keys [size seed]}]]
   (utils/generate {:size size :seed seed} (spec/gen arg)))
 
-(defmethod confab :confab/schema-pair [[keyword opts] & _]
+(defmethod ^:private confab :confab/schema-pair [[keyword opts] & _]
   (confab keyword opts))
 
-(defmethod confab :confab/schema-sequential
+(defmethod ^:private confab :confab/schema-sequential
   [pairs & _]
   (let [container (cond (vector? pairs) []
                         (list? pairs)   '())]
 
     (into container (for [pair pairs] (confab pair)))))
 
-(defmethod confab :confab/schema-map [arg & _]
+(defmethod ^:private confab :confab/schema-map [arg & _]
   (update-vals arg confab))
 
-(defmethod confab :confab/schema-identity [arg & _]
+(defmethod ^:private confab :confab/schema-identity [arg & _]
   arg)
 
 
@@ -95,7 +95,7 @@
   (if-not length
     (utils/generate {:seed seed} gen/string-alphanumeric)
     (utils/generate {:seed seed} (gen/fmap #(apply str %)
-                                           (gen/vector (gen/char-alpha) length)))))
+                                           (gen/vector gen/char-alpha length)))))
 
 
 (defmethod confab :confab/inst

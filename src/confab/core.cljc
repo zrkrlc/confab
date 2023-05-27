@@ -1,11 +1,10 @@
 (ns confab.core
   (:require [clojure.set :as set]
-            [clojure.pprint :refer [pprint]]
+            [clojure.spec.alpha :as spec]
+            [clojure.test.check.generators :as gen]
+            [cljc.java-time.instant :as instant]
 
-            #?(:clj [clojure.spec.alpha :as spec]
-               :cljs [cljs.spec.alpha :as spec])
-            #?(:clj [clojure.spec.gen.alpha :as gen]
-               :cljs [cljs.spec.gen.alpha :as gen])))
+            [confab.utils :as utils]))
 
 ;;; --------------------------------
 ;;; Directory
@@ -19,8 +18,8 @@
                 :confab/float
                 :confab/hexadecimal
                 :confab/octal
-                :confab/radix
-                :confab/binary}
+                :confab/binary
+                :confab/radix}
 
    :internet  #{:confab/username
                 :confab/email
@@ -30,8 +29,8 @@
 
 (def ^:private directory-keys
   (->> directory
-     vals
-     (apply set/union)))
+       vals
+       (apply set/union)))
 
 
 ;;; --------------------------------
@@ -45,24 +44,40 @@
            (not (spec/get-spec arg))
            (directory-keys arg))         arg
 
+      (and (keyword? arg)
+           (spec/get-spec arg))         :confab/schema-spec
+
       (and (vector? arg)
-           (directory-keys (first arg))) :confab/schema-vector
+           (= 2 (count arg))
+           (directory-keys (first arg))
+           (or (not (some? (second arg)))
+               (map? (second arg))))     :confab/schema-pair
+
+      (sequential? arg)                  :confab/schema-sequential
 
       (map? arg)                         :confab/schema-map
 
-      :else                              :confab/spec-or-identity)))
+      :else                              :confab/schema-identity)))
 
-(defmethod confab :confab/spec-or-identity [arg & _]
-  (if (spec/get-spec arg)
-    (gen/generate (spec/gen arg))
-    arg))
 
-(defmethod confab :confab/schema-vector [[keyword opts] & _]
+(defmethod confab :confab/schema-spec [arg & [{:keys [size seed]}]]
+  (utils/generate {:size size :seed seed} (spec/gen arg)))
+
+(defmethod confab :confab/schema-pair [[keyword opts] & _]
   (confab keyword opts))
 
+(defmethod confab :confab/schema-sequential
+  [pairs & _]
+  (let [container (cond (vector? pairs) []
+                        (list? pairs)   '())]
+
+    (into container (for [pair pairs] (confab pair)))))
 
 (defmethod confab :confab/schema-map [arg & _]
   (update-vals arg confab))
+
+(defmethod confab :confab/schema-identity [arg & _]
+  arg)
 
 
 
@@ -70,64 +85,115 @@
 ;;; Datatype
 ;;; --------------------------------
 
-;; Boolean
-(defmethod confab :confab/boolean 
-  [_ & _] 
-  (gen/generate (gen/boolean)))
+(defmethod confab :confab/boolean
+  [_ & [{:keys [seed]}]]
+  (utils/generate {:seed seed} gen/boolean))
 
 
-;; String
-;; TODO: add :length option
-(defmethod confab :confab/string 
-  [_ & _] 
-  (gen/generate (gen/string-alphanumeric)))
+(defmethod confab :confab/string
+  [_ & [{:keys [seed length]}]]
+  (if-not length
+    (utils/generate {:seed seed} gen/string-alphanumeric)
+    (utils/generate {:seed seed} (gen/fmap #(apply str %)
+                                           (gen/vector (gen/char-alpha) length)))))
 
 
-;; Inst
-;; TODO: fix this
 (defmethod confab :confab/inst
-  [_ & [{:keys [start end] :or {start #?(:clj (java.util.Date. 0)
-                                         :cljs (js/Date. 0))
-                                end   #?(:clj (java.util.Date.)
-                                         :cljs (js/Date.))}}]]
-  (gen/generate ( start end)))
+  [_ & [{:keys [seed start end]
+         :or {start (instant/of-epoch-milli 0)
+              end   (instant/now)}}]]
+  (let [start-epoch (instant/to-epoch-milli start)
+        end-epoch (instant/to-epoch-milli end)
+        max-delta (- end-epoch start-epoch)
+
+        milli-to-day (fn [ms] (/ ms (* 1000 60 60 24)))
+        day-to-milli (fn [day] (* day (* 1000 60 60 24)))
+
+        max-delta-day (milli-to-day max-delta)
+        random-delta-day (utils/generate {:seed seed :size max-delta-day} gen/nat)]
+
+    (instant/of-epoch-milli (+ start-epoch (day-to-milli random-delta-day)))))
+
 
 (defmethod confab :confab/integer
-  [_ & [{:keys [min max] :or {min #?(:clj Integer/MIN_VALUE
-                                     :cljs js/Integer.MIN_VALUE)
-                              max #?(:clj Integer/MAX_VALUE
-                                     :cljs js/Integer.MAX_VALUE)}}]]
-  (gen/generate (gen/choose min max)))
+  [_ & [{:keys [seed min max]}]]
+  (let [min-default #?(:clj Integer/MIN_VALUE
+                       :cljs js/Number.MIN_SAFE_INTEGER)
+        max-default #?(:clj Integer/MAX_VALUE
+                       :cljs js/Number.MAX_SAFE_INTEGER)]
+    (if-not (or min max)
+      (utils/generate {:seed seed} gen/small-integer)
+      (utils/generate {:seed seed} (gen/choose (or min min-default) (or max max-default))))))
+
 
 (defmethod confab :confab/float
-  [_ & [{:keys [min max] :or {min #?(:clj Float/MIN_VALUE
-                                     :cljs js/Number.MIN_VALUE)
-                              max #?(:clj Float/MAX_VALUE
-                                     :cljs js/Number.MAX_VALUE)}}]]
-  (gen/generate (gen/double min max)))
+  [_ & [{:keys [seed min max NaN? infinite?]
+         :or   {NaN?      false
+                infinite? false}}]]
+  (let [min-default #?(:clj Float/MIN_VALUE
+                       :cljs js/Number.MIN_VALUE)
+        max-default #?(:clj Float/MAX_VALUE
+                       :cljs js/Number.MAX_VALUE)]
+    (utils/generate
+     {:seed seed}
+     (gen/double* {:min       (or min min-default)
+                   :max       (or max max-default)
+                   :NaN?      NaN?
+                   :infinite? infinite?}))))
+
 
 (defmethod confab :confab/hexadecimal
-  [_ & [{:keys [length] :or {length 6}}]]
-  (gen/generate (gen/fmap #(apply str %) (gen/vector gen/hex-digit length))))
+   [_ & [{:keys [seed min max]}]]
+   (let [min-default #?(:clj Integer/MIN_VALUE
+                        :cljs js/Number.MIN_SAFE_INTEGER)
+         max-default #?(:clj Integer/MAX_VALUE
+                        :cljs js/Number.MAX_SAFE_INTEGER)
+         convert     #?(:clj (fn [x] (Integer/toHexString x))
+                        :cljs #(.. % (toString 16)))]
+     (-> (if-not (or min max)
+           (utils/generate {:seed seed} gen/small-integer)
+           (utils/generate {:seed seed} (gen/choose (or min min-default) (or max max-default))))
+         convert)))
+
 
 (defmethod confab :confab/octal
-  [_ & [{:keys [length] :or {length 6}}]]
-  (gen/generate (gen/fmap #(apply str %) (gen/vector (gen/choose 0 7) length))))
+   [_ & [{:keys [seed min max]}]]
+   (let [min-default #?(:clj Integer/MIN_VALUE
+                        :cljs js/Number.MIN_SAFE_INTEGER)
+         max-default #?(:clj Integer/MAX_VALUE
+                        :cljs js/Number.MAX_SAFE_INTEGER)
+         convert     #?(:clj (fn [x] (Integer/toOctalString x))
+                        :cljs #(.. % (toString 8)))]
+     (-> (if-not (or min max)
+           (utils/generate {:seed seed} gen/small-integer)
+           (utils/generate {:seed seed} (gen/choose (or min min-default) (or max max-default))))
+         convert)))
 
-(defmethod confab :confab/radix
-  [_ & [{:keys [length radix] :or {length 6
-                                   radix 10}}]]
-  (gen/generate (gen/fmap #(apply str %) 
-                          (gen/vector (gen/choose 0 (dec radix)) length))))
 
 (defmethod confab :confab/binary
-  [_ & [{:keys [length] :or {length 8}}]]
-  (gen/generate (gen/fmap #(apply str %) (gen/vector gen/bit length))))
+   [_ & [{:keys [seed min max]}]]
+   (let [min-default #?(:clj Integer/MIN_VALUE
+                        :cljs js/Number.MIN_SAFE_INTEGER)
+         max-default #?(:clj Integer/MAX_VALUE
+                        :cljs js/Number.MAX_SAFE_INTEGER)
+         convert     #?(:clj (fn [x] (Integer/toBinaryString x))
+                        :cljs #(.. % (toString 2)))]
+     (-> (if-not (or min max)
+           (utils/generate {:seed seed} gen/small-integer)
+           (utils/generate {:seed seed} (gen/choose (or min min-default) (or max max-default))))
+         convert)))
 
 
-
-
-(comment
-  (map gen/generate
-       [(gen/ gen/vector gen/pos-int)])
-  )
+(defmethod confab :confab/radix
+   [_ & [{:keys [seed min max radix]
+          :or   {radix 10}}]]
+   (let [min-default #?(:clj Integer/MIN_VALUE
+                        :cljs js/Number.MIN_SAFE_INTEGER)
+         max-default #?(:clj Integer/MAX_VALUE
+                        :cljs js/Number.MAX_SAFE_INTEGER)
+         convert     #?(:clj (fn [x] (Integer/toString x radix))
+                        :cljs #(.. % (toString radix)))]
+     (-> (if-not (or min max)
+           (utils/generate {:seed seed} gen/small-integer)
+           (utils/generate {:seed seed} (gen/choose (or min min-default) (or max max-default))))
+         convert)))

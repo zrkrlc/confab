@@ -3,16 +3,29 @@
            org.clojure/clojurescript         {:mvn/version "1.11.60"}
            org.clojure/spec.alpha            {:mvn/version "0.3.218"}
            org.clojure/test.check            {:mvn/version "1.1.1"}
-           com.widdindustries/cljc.java-time {:mvn/version "0.1.21"}}
- :aliases {:new   {:extra-deps {com.github.seancorfield/clj-new {:mvn/version "1.2.399"}}
-                   :exec-fn    clj-new/create
-                   :exec-args  {:template "lib"}}
-           
-           :build {:deps       {io.github.seancorfield/build-clj {:git/tag "v0.8.2"
-                                                                  :git/sha "0ffdb4c"}}
-                   :ns-default build}
-           
-           :test  {:extra-paths ["test"]
-                   :extra-deps  {org.clojure/test.check               {:mvn/version "1.1.1"}
-                                 io.github.cognitect-labs/test-runner {:git/tag "v0.5.0" 
-                                                                       :git/sha "48c3c67"}}}}}
+           com.widdindustries/cljc.java-time {:mvn/version "0.1.21"}
+           tick/tick                         {:mvn/version "0.6.2"}}
+
+ :aliases {:new        {:extra-deps {com.github.seancorfield/clj-new {:mvn/version "1.2.399"}}
+                        :exec-fn    clj-new/create
+                        :exec-args  {:template "lib"}}
+
+           :build      {:deps       {io.github.seancorfield/build-clj {:git/tag "v0.8.2"
+                                                                       :git/sha "0ffdb4c"}}
+                        :ns-default build}
+
+           :test       {:extra-paths ["test"]
+                        :extra-deps  {org.clojure/test.check               {:mvn/version "1.1.1"}
+                                      io.github.cognitect-labs/test-runner {:git/tag "v0.5.0"
+                                                                            :git/sha "48c3c67"}}}
+
+           :nrepl      {:extra-deps {nrepl/nrepl       {:mvn/version "0.8.3"}
+                                     cider/cider-nrepl {:mvn/version "0.30.0"}}
+                        :main-opts  ["-m" "nrepl.cmdline"
+                                     "--middleware" "[cider.nrepl/cider-middleware]"]}
+
+           :nrepl-cljs {:extra-deps {nrepl/nrepl       {:mvn/version "0.8.3"}
+                                     cider/cider-nrepl {:mvn/version "0.30.0"}
+                                     cider/piggieback  {:mvn/version "0.5.3"}}
+                        :main-opts  ["-m" "nrepl.cmdline"
+                                     "--middleware" "[cider.piggieback/wrap-cljs-repl]"]}}}

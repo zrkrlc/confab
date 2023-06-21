@@ -32,6 +32,14 @@
        vals
        (apply set/union)))
 
+(declare confab)
+(defn ^:private tuple
+  "Tag reader for confab tuples"
+  [[k opts]]
+  (confab k opts))
+
+
+
 
 ;;; --------------------------------
 ;;; Core fns
@@ -45,14 +53,8 @@
            (directory-keys arg))         arg
 
       (and (keyword? arg)
-           (spec/get-spec arg))         :confab/schema-spec
-
-      (and (vector? arg)
-           (= 2 (count arg))
-           (directory-keys (first arg))
-           (or (not (some? (second arg)))
-               (map? (second arg))))     :confab/schema-pair
-
+           (spec/get-spec arg))          :confab/schema-spec
+      
       (sequential? arg)                  :confab/schema-sequential
 
       (map? arg)                         :confab/schema-map
@@ -63,14 +65,10 @@
 (defmethod ^:private confab :confab/schema-spec [arg & [{:keys [size seed]}]]
   (utils/generate {:size size :seed seed} (spec/gen arg)))
 
-(defmethod ^:private confab :confab/schema-pair [[keyword opts] & _]
-  (confab keyword opts))
-
 (defmethod ^:private confab :confab/schema-sequential
   [pairs & _]
   (let [container (cond (vector? pairs) []
                         (list? pairs)   '())]
-
     (into container (for [pair pairs] (confab pair)))))
 
 (defmethod ^:private confab :confab/schema-map [arg & _]
@@ -197,3 +195,4 @@
            (utils/generate {:seed seed} gen/small-integer)
            (utils/generate {:seed seed} (gen/choose (or min min-default) (or max max-default))))
          convert)))
+

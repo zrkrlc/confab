@@ -41,24 +41,22 @@ Confab can also in a sequence of keywords and generate data accordingly. If ther
 ; => ("start" 8 "end" true)
 ```
 
-### Alternative syntax
+### Passing opts to individual keywords
 
-> :warning: This is a potential point of confusion, so take note of it before reading on.
-
-However, Confab treats a pair of `[<keyword> <options-map>]` in a special way, so that these two calls are equivalent:
+The custom tag `#confab/tuple` allows you to treat pairs of `[<keyword> <options-map>]` as tagged literals so that these two calls are equivalent:
 
 ```clojure
 (confab :confab/password {:length 8, :seed 10101010})
 ; => "eF8xYiw0"
 
-(confab [:confab/password {:length 8, :seed 10101010}])
+(confab #confab/tuple [:confab/password {:length 8, :seed 10101010}])
 ; => "eF8xYiw0" (same output)
 ```
 
 Why introduce this alternative syntax? It's useful if you want to pass in options to individual keywords in a sequence:
 
 ```clojure
-(confab [:confab/username, [:confab/password {:length 8}]])
+(confab [:confab/username, #confab/tuple [:confab/password {:length 8}]])
 ; => ["fullmetall_alchemist97" "Xn1Se7Ui]
 ```
 
@@ -80,7 +78,7 @@ Confab can also take in a (possibly nested) schema of keys with `:confab/*` as v
 ;                  :about     "Was I a good Bing?"}}
 ```
 
-Like in sequences, constant values will be left intact. Thus, aside from the single exception involving `[<keyword> <options-map>]` pairs above, **Confab is designed to mirror the shape of your data**.
+Like in sequences, constant values will be left intact. Thus, **Confab is designed to mirror the shape of your data**.
 
 See [Modules](#Modules) for the available keywords and the options they accept.
 
@@ -94,6 +92,7 @@ See [Modules](#Modules) for the available keywords and the options they accept.
 #### `:confab/string`
 
 #### `:confab/inst`
+
 Not to be confused with `:confab/date` which spits out human-readable dates.
 
 #### `:confab/integer`

@@ -32,17 +32,24 @@
        vals
        (apply set/union)))
 
-(declare confab)
-(defn ^:private tuple
-  "Tag reader for confab tuples"
-  [[k opts]]
-  (confab k opts))
-
 
 
 ;;; --------------------------------
 ;;; Core fns
 ;;; --------------------------------
+
+;;; Tuple
+
+(defrecord ^:private Tuple [keyword opts])
+
+(declare confab)
+(defn ^:private tuple
+  "Tag reader for confab tuples"
+  [[k opts]]
+  (->Tuple k (if opts opts {})))
+
+
+;;; Confab
 
 (defmulti confab
   (fn [arg & _]
@@ -54,10 +61,12 @@
       (and (keyword? arg)
            (spec/get-spec arg))          :confab/schema-spec
       
+      (instance? Tuple arg)              :confab/schema-tuple
+      
       (sequential? arg)                  :confab/schema-sequential
 
       (map? arg)                         :confab/schema-map
-
+      
       :else                              :confab/schema-identity)))
 
 
@@ -72,6 +81,9 @@
 
 (defmethod ^:private confab :confab/schema-map [arg & _]
   (update-vals arg confab))
+
+(defmethod ^:private confab :confab/schema-tuple [{:keys [keyword opts]} & _]
+  (confab keyword opts))
 
 (defmethod ^:private confab :confab/schema-identity [arg & _]
   arg)
@@ -194,4 +206,3 @@
            (utils/generate {:seed seed} gen/small-integer)
            (utils/generate {:seed seed} (gen/choose (or min min-default) (or max max-default))))
          convert)))
-

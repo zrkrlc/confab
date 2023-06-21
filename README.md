@@ -43,7 +43,7 @@ Confab can also in a sequence of keywords and generate data accordingly. If ther
 
 ### Passing opts to individual keywords
 
-The custom tag `#confab/tuple` allows you to treat pairs of `[<keyword> <options-map>]` as tagged literals so that these two calls are equivalent:
+The custom tag `#confab/tuple` (or `#cf/t` for short) allows you to treat pairs of `[<keyword> <options-map>]` as tagged literals so that these two calls are equivalent:
 
 ```clojure
 (confab :confab/password {:length 8, :seed 10101010})
@@ -56,7 +56,7 @@ The custom tag `#confab/tuple` allows you to treat pairs of `[<keyword> <options
 Why introduce this alternative syntax? It's useful if you want to pass in options to individual keywords in a sequence:
 
 ```clojure
-(confab [:confab/username, #confab/tuple [:confab/password {:length 8}]])
+(confab [:confab/username, #cf/t [:confab/password {:length 8}]])
 ; => ["fullmetall_alchemist97" "Xn1Se7Ui]
 ```
 
